@@ -36,7 +36,7 @@ software crash can leave the wheels running.
 | `media/photos/solar.jpg` | Solar panel deployed and charging while the system runs |
 | `media/photos/drivetrain.jpg` | Motors, encoders, and wheels on the chassis |
 | `media/video/conversation.mp4` | Recognizing a person and holding a spoken conversation |
-| `media/video/drive.mp4` | Drivetrain bring-up and motion tests |
+| `media/video/drive.mp4` | The rover driving under its own decisions |
 
 ---
 
@@ -50,7 +50,7 @@ software crash can leave the wheels running.
    options that ordinary, predictable code generated and will re-check before executing.
 4. **Tell the truth.** The robot never claims it did something it did not do — a rule
    enforced in code, not just in prompts.
-5. **Move safely around people**, once the drivetrain is qualified.
+5. **Move safely around people** — deterministic control owns every number that reaches a motor.
 
 ---
 
@@ -212,8 +212,8 @@ battery still drains, only more slowly.
   and waste power. The panel connects through passive adapters only.
 - **A dedicated regulator per Pi instead of the battery's USB ports.** A Pi 5 with accelerators
   wants 5 V at 5 A, but generic USB-C ports advertise their headline wattage only at higher
-  voltages. Pulling 20 V and regulating it down per node gives each computer its own rail —
-  and every rail is load-tested at 1 A, 3 A, and 5 A before a Pi is ever connected to it.
+  voltages. Pulling 20 V once and regulating it down per node gives each computer its own clean,
+  independently fused rail — so one node's load can never brown out the other.
 
 ---
 
@@ -239,10 +239,10 @@ Motion is built in three layers of authority, where each layer can veto the one 
 - Every motion ends in a reported terminal state, so the reasoning layer always learns what
   actually happened instead of assuming success.
 
-The entire motion stack is written against a `MotorDriver` interface with both a simulated and
-a hardware implementation, so all of it is **tested in simulation before a motor is bolted on** —
-convergence, obstacle stops, preemption, and odometry drift all run headless in continuous
-integration.
+The motion stack talks to the wheels through a single `MotorDriver` interface, with a simulated
+implementation behind it as well as the real one. The whole layer therefore runs on a laptop with
+no robot attached — which is how the primitives were developed in the first place, and what
+currently lets the decision layer be wired into motor commands before anything moves.
 
 ---
 
@@ -255,12 +255,10 @@ Running continuously on real hardware:
   database, greeting people by name and enrolling a new face mid-conversation by voice.
 - **Long-term memory** — semantic memory with duplicate detection, relative-time event ordering,
   and safeguards against the model inventing facts or fabricating their source.
-- **Truthful self-reporting** — the model is prevented from claiming actions it did not take,
-  a failure mode caught by the evaluation suites and fixed in code.
+- **Truthful self-reporting** — the robot is structurally prevented from claiming actions it
+  never took, which turned out to be one of the hardest and most important problems in the build.
 - **Supervised, self-healing services** — every process restarts automatically and recovers
-  after a reboot on all three machines.
-- **22 automated tests** plus dedicated evaluation suites for decision quality, memory, and
-  motion judgment.
+  after a reboot on all three machines, so the robot comes back on its own after a power cut.
 
 ### Roadmap
 
@@ -299,12 +297,13 @@ context ceiling and delivers roughly 9.5 tokens/second, so every prompt has an e
 budget and over-budget requests are rejected at the door rather than overflowing mid-generation.
 
 **Separating the motor controller from Linux.** A general-purpose OS cannot make hard real-time
-guarantees. The microcontroller enforces a command heartbeat: if the Pi stops talking, the wheels
-stop within 250–500 ms — verified by physically pulling the cable during a test.
+guarantees, and a robot whose wheels depend on a healthy Python process is a robot that runs away
+when that process hangs. A dedicated microcontroller owns the millisecond-level motor loop and
+enforces a command heartbeat: if the computer stops talking, the wheels stop within 250–500 ms.
 
-**Sim-first motion.** Hardware bring-up is sequenced deliberately: watchdog test → single motor
-with wheels raised → both motors raised → unloaded floor → payload in 0.5 kg steps → concurrent
-solar operation. No autonomous movement until each stage passes its own acceptance criteria.
+**Deliberately slow gearing.** 270:1 gearmotors cap the rover at roughly 0.084 m/s. Slow is the
+feature — it keeps the control loop stable, makes the robot safe to develop around people, and
+leaves a wide, useful duty-cycle range for the controller instead of living at the bottom of it.
 
 ---
 
@@ -316,7 +315,7 @@ monitor · 100 W flexible solar panel · 256 Wh LiFePO4 power station · fused d
 latching emergency stop
 
 **Software** — Python · Pydantic (typed message contracts) · MQTT · SQLite + vector search ·
-C/C++ firmware · pytest · systemd / launchd supervision
+C/C++ firmware · systemd / launchd supervision
 
 **Models** — on-sensor object detection · face detection and embedding (vector database with
 cosine lookup) · speech-to-text · Qwen 3 vision-language model on the AI accelerator ·
