@@ -1,8 +1,8 @@
-# Solar Autonomous Rover (S.A.R.)
+# SPARC: Solar Powered Autonomous Rover Companion
 
-A solar-powered autonomous rover that sees, listens, holds a conversation, remembers people
-and events, and makes its own decisions, running entirely on local hardware, with no cloud
-and no internet dependency.
+A solar-powered autonomous rover companion that sees, listens, holds a conversation, remembers
+people and events, and makes its own decisions, running entirely on local hardware, with no
+cloud and no internet dependency.
 
 The whole system runs off a 100 W solar panel and a portable battery. Three computers work
 together on board: two Raspberry Pis with AI accelerators handle vision and speech, and a
