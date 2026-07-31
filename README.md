@@ -9,28 +9,6 @@ together on board: two Raspberry Pis with AI accelerators handle vision and spee
 laptop runs the large reasoning model. A separate microcontroller owns the motors, so no
 software crash can leave the wheels running.
 
-## Demo
-
-> 📸 **Photos and video are being added.** The captures below are reserved and will appear
-> here as soon as the media is uploaded.
-
-<!-- Uncomment each line as the file is added to media/ -->
-<!-- ![The rover](media/photos/hero.jpg) -->
-<!-- ![Electronics bay](media/photos/electronics.jpg) -->
-<!-- ![Solar panel deployed](media/photos/solar.jpg) -->
-<!-- ![Drivetrain](media/photos/drivetrain.jpg) -->
-
-| Planned capture | What it shows |
-|---|---|
-| `media/photos/hero.jpg` | The assembled rover |
-| `media/photos/electronics.jpg` | Electronics bay: two Pis, accelerators, regulators, motor drivers |
-| `media/photos/solar.jpg` | Solar panel deployed and charging while the system runs |
-| `media/photos/drivetrain.jpg` | Motors, encoders, and wheels on the chassis |
-| `media/video/conversation.mp4` | Recognizing a person and holding a spoken conversation |
-| `media/video/drive.mp4` | The rover driving under its own decisions |
-
----
-
 ## Goals
 
 1. **Run untethered on sunlight.** No wall power, no cloud. A 100 W panel and a 256 Wh
@@ -314,14 +292,6 @@ cosine lookup) · speech-to-text · Qwen 3 vision-language model on the AI accel
 model for action selection
 
 ---
-
-## Repository layout
-
-```
-media/photos/      build and demo photography
-media/video/       demo clips
-media/diagrams/    architecture and wiring diagrams
-```
 
 > This repository is a public showcase of the project's design and results. The robot's source
 > code and the operational documents for the live system are kept in a separate private
