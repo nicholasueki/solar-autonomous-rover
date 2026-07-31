@@ -1,22 +1,13 @@
-# S.A.R. — Solar Autonomous Rover
+# Solar Autonomous Rover (S.A.R.)
 
 A solar-powered autonomous rover that sees, listens, holds a conversation, remembers people
-and events, and makes its own decisions — running entirely on local hardware, with no cloud
+and events, and makes its own decisions, running entirely on local hardware, with no cloud
 and no internet dependency.
 
 The whole system runs off a 100 W solar panel and a portable battery. Three computers work
 together on board: two Raspberry Pis with AI accelerators handle vision and speech, and a
 laptop runs the large reasoning model. A separate microcontroller owns the motors, so no
 software crash can leave the wheels running.
-
-| | |
-|---|---|
-| **Status** | Hardware fully assembled · cognitive stack running continuously · currently wiring the decision layer into the ESP32 motor controller, turning chosen actions into motor commands |
-| **Built by** | Nicholas Tincani Ueki — B.S. Computer Science (Emory) + B.S. Mechanical Engineering (Georgia Tech) |
-| **Scope** | Solo project — system design, electronics, mechanical build, and software |
-| **Domains** | Robotics · Embedded systems · Edge AI · Power systems · Controls |
-
----
 
 ## Demo
 
@@ -48,9 +39,9 @@ software crash can leave the wheels running.
    with the expensive processors idle until something actually matters.
 3. **Never let the AI touch anything dangerous.** The language model may only choose between
    options that ordinary, predictable code generated and will re-check before executing.
-4. **Tell the truth.** The robot never claims it did something it did not do — a rule
+4. **Tell the truth.** The robot never claims it did something it did not do. That rule is
    enforced in code, not just in prompts.
-5. **Move safely around people** — deterministic control owns every number that reaches a motor.
+5. **Move safely around people.** Deterministic control owns every number that reaches a motor.
 
 ---
 
@@ -59,7 +50,7 @@ software crash can leave the wheels running.
 > **Always sensing. Not always thinking. Deterministic code owns reality; the AI only advises.**
 
 Every sense uses a cheap, always-on trigger that gates an expensive, on-demand stage. That
-single pattern is what makes continuous operation affordable in power, heat, and compute —
+single pattern is what makes continuous operation affordable in power, heat, and compute,
 and it's what makes a solar budget realistic at all.
 
 ```
@@ -78,15 +69,15 @@ Three computers, each with a clearly separated job, talking over a local network
 
 ```mermaid
 flowchart LR
-    subgraph A["Node A — Vision"]
+    subgraph A["Node A: Vision"]
         A1["Raspberry Pi 5<br/>+ 26 TOPS AI accelerator<br/>+ on-sensor AI camera"]
         A2["World model · scheduler<br/>· safety validator"]
     end
-    subgraph B["Node B — Speech & local AI"]
+    subgraph B["Node B: Speech & local AI"]
         B1["Raspberry Pi 5<br/>+ generative AI accelerator"]
         B2["Speech-to-text<br/>· fast option selector"]
     end
-    subgraph C["Node C — Reasoning"]
+    subgraph C["Node C: Reasoning"]
         C1["MacBook Pro M1 Max<br/>35B multimodal model"]
         C2["Decision generation<br/>· long-term memory"]
     end
@@ -101,7 +92,7 @@ flowchart LR
 
 **Why the jobs are split this way:** vision must never wait behind speech, speech must never
 wait behind reasoning, and the motors must never wait behind any of them. Each box owns one
-class of work, and the one thing that can hurt someone — the wheels — sits behind a dedicated
+class of work, and the one thing that can hurt someone, the wheels, sits behind a dedicated
 microcontroller that keeps running even if every other computer stops.
 
 ### Perception ladder
@@ -116,7 +107,7 @@ microcontroller that keeps running even if every other computer stops.
 
 ---
 
-## The AI system — a chain of small models, not one big one
+## The AI system: a chain of small models, not one big one
 
 Local models are improving fast, but none of them can reliably take raw images and sound in
 one end and produce trustworthy motor commands and intent out the other. Ask a single model to
@@ -128,30 +119,30 @@ these three options. Every stage has a small enough responsibility that it's har
 and its output is small enough to check.
 
 **The result of that constraint:** fewer hallucinations, lower latency, and far fewer tokens
-moving through the system — because each model only ever receives what it actually needs.
+moving through the system, because each model only ever receives what it actually needs.
 
 ### The pipeline
 
 ```mermaid
 flowchart LR
-    CAM["<b>AI camera</b><br/>motion, objects, people"] -->|"triggers"| VLM["<b>Vision model</b> — on AI accelerator<br/>Qwen 3 VLM"]
-    VLM -->|"≤3 sentence<br/>scene summary"| BRAIN["<b>Reasoning model</b> — laptop<br/>35B multimodal"]
+    CAM["<b>AI camera</b><br/>motion, objects, people"] -->|"triggers"| VLM["<b>Vision model</b><br/>AI accelerator: Qwen 3 VLM"]
+    VLM -->|"≤3 sentence<br/>scene summary"| BRAIN["<b>Reasoning model</b><br/>laptop: 35B multimodal"]
     MEM[("<b>Memory</b><br/>faces · events · facts")] --> BRAIN
     BRAIN -->|"scenario +<br/>3 candidate actions"| PERS["<b>Personality model</b><br/>picks one option"]
-    PERS -->|"chosen action"| VAL["<b>Validator</b> — deterministic<br/>re-checks against live state"]
+    PERS -->|"chosen action"| VAL["<b>Validator</b><br/>deterministic re-check against live state"]
     VAL --> OUT["speech · movement"]
 ```
 
 | Stage | Runs on | Its one job | What it outputs |
 |---|---|---|---|
-| **Detection** | On-sensor AI camera | Notice movement, objects, and people | A trigger — no model call unless something happened |
+| **Detection** | On-sensor AI camera | Notice movement, objects, and people | A trigger; no model call unless something happened |
 | **Scene summary** | Vision accelerator (Qwen 3 VLM) | Look at the frame and describe it | 3 sentences, maximum |
 | **Scenario + options** | Laptop (35B multimodal) | Combine the summary with recent memory: what is happening, what in memory relates to it, and what could be done | A 1–5 sentence scenario and **3 candidate actions**, including speech and movement |
-| **Choice** | Personality model | Pick the option that fits who this robot is | One option — a single token |
+| **Choice** | Personality model | Pick the option that fits who this robot is | One option, a single token |
 | **Execution** | Deterministic code | Re-check the choice against live state, then act | Motor commands or speech, or a refusal |
 
 The personality model's entire system prompt is the robot's character. It doesn't reason about
-the world or invent actions — it only chooses among options that were already generated and will
+the world or invent actions; it only chooses among options that were already generated and will
 still be validated afterward. That's what makes personality safe to have: it can change *which*
 reasonable thing happens, never *whether* something unreasonable does.
 
@@ -182,9 +173,9 @@ traction current never touches the compute supply.
 ```mermaid
 flowchart TD
     SUN["100 W flexible solar panel"] --> JACK["256 Wh portable battery<br/>built-in protection + solar charging"]
-    JACK --> PD["USB-C trigger — 20 V"]
-    PD --> F1["3 A fuse"] --> R1["5.2 V / 5 A regulator"] --> P1["Pi — vision"]
-    PD --> F2["3 A fuse"] --> R2["5.2 V / 5 A regulator"] --> P2["Pi — speech/AI"]
+    JACK --> PD["USB-C trigger, 20 V"]
+    PD --> F1["3 A fuse"] --> R1["5.2 V / 5 A regulator"] --> P1["Pi: vision"]
+    PD --> F2["3 A fuse"] --> R2["5.2 V / 5 A regulator"] --> P2["Pi: speech/AI"]
     BAT["Traction battery"] --> FUSE["7.5 A fuse"] --> SW["Main switch"]
     SW --> MON["Current/voltage monitor"] --> D1["Motor driver L"] & D2["Motor driver R"]
     D1 --> ML["Left gearmotor + encoder"]
@@ -213,14 +204,14 @@ battery still drains, only more slowly.
 - **A dedicated regulator per Pi instead of the battery's USB ports.** A Pi 5 with accelerators
   wants 5 V at 5 A, but generic USB-C ports advertise their headline wattage only at higher
   voltages. Pulling 20 V once and regulating it down per node gives each computer its own clean,
-  independently fused rail — so one node's load can never brown out the other.
+  independently fused rail, so one node's load can never brown out the other.
 
 ---
 
 ## Drivetrain and motion control
 
 Deliberately slow and heavily geared: 270:1 gearmotors with quadrature encoders, giving roughly
-**0.084 m/s** at the pack's nominal voltage with 65 mm wheels — about 17,280 encoder counts per
+**0.084 m/s** at the pack's nominal voltage with 65 mm wheels, about 17,280 encoder counts per
 wheel revolution. Slow is a feature here: it makes the control loop stable, keeps the robot safe
 around people, and leaves the controller a wide useful duty-cycle range.
 
@@ -228,9 +219,9 @@ Motion is built in three layers of authority, where each layer can veto the one 
 
 | Layer | Runs on | Rate | Owns |
 |---|---|---|---|
-| **L2 — Cognitive** | Laptop / local AI | ~1 Hz | Symbolic intent: "approach that person", "look there". May be wrong. |
-| **L1 — Primitives** | Vision Pi | 50 Hz | Closed-loop state machines, smooth velocity profiles, odometry, obstacle gating, timeouts |
-| **L0 — Reflex/safety** | ESP32 | 200+ Hz | PID velocity control, current limits, emergency stop, heartbeat watchdog |
+| **L2, Cognitive** | Laptop / local AI | ~1 Hz | Symbolic intent: "approach that person", "look there". May be wrong. |
+| **L1, Primitives** | Vision Pi | 50 Hz | Closed-loop state machines, smooth velocity profiles, odometry, obstacle gating, timeouts |
+| **L0, Reflex/safety** | ESP32 | 200+ Hz | PID velocity control, current limits, emergency stop, heartbeat watchdog |
 
 **Safety rules that are not negotiable, and are enforced in code rather than by the model:**
 - Never drive when a person is closer than 0.4 m.
@@ -241,7 +232,7 @@ Motion is built in three layers of authority, where each layer can veto the one 
 
 The motion stack talks to the wheels through a single `MotorDriver` interface, with a simulated
 implementation behind it as well as the real one. The whole layer therefore runs on a laptop with
-no robot attached — which is how the primitives were developed in the first place, and what
+no robot attached, which is how the primitives were developed in the first place, and what
 currently lets the decision layer be wired into motor commands before anything moves.
 
 ---
@@ -250,14 +241,14 @@ currently lets the decision layer be wired into motor commands before anything m
 
 Running continuously on real hardware:
 
-- **Spoken conversation** — wake-gated listening → speech-to-text → reasoning → spoken reply.
-- **Person recognition** — detection, face embedding, and identity resolution against a vector
+- **Spoken conversation:** wake-gated listening → speech-to-text → reasoning → spoken reply.
+- **Person recognition:** detection, face embedding, and identity resolution against a vector
   database, greeting people by name and enrolling a new face mid-conversation by voice.
-- **Long-term memory** — semantic memory with duplicate detection, relative-time event ordering,
+- **Long-term memory:** semantic memory with duplicate detection, relative-time event ordering,
   and safeguards against the model inventing facts or fabricating their source.
-- **Truthful self-reporting** — the robot is structurally prevented from claiming actions it
+- **Truthful self-reporting:** the robot is structurally prevented from claiming actions it
   never took, which turned out to be one of the hardest and most important problems in the build.
-- **Supervised, self-healing services** — every process restarts automatically and recovers
+- **Supervised, self-healing services:** every process restarts automatically and recovers
   after a reboot on all three machines, so the robot comes back on its own after a power cut.
 
 ### Roadmap
@@ -265,11 +256,11 @@ Running continuously on real hardware:
 | Milestone | State |
 |---|---|
 | Supervised, restartable core | ✅ Shipped |
-| Visual cognition — real images inform decisions | ✅ Shipped |
+| Visual cognition: real images inform decisions | ✅ Shipped |
 | Reliable local spoken conversation | 🚧 Active |
 | Robust multi-person visual identity | 🚧 Active |
 | Richer perception: attention, proximity, sound events | Planned |
-| Deterministic motion foundation — decisions to motor commands | 🚧 In progress |
+| Deterministic motion foundation: decisions to motor commands | 🚧 In progress |
 | Head movement and social orientation | Planned |
 | Safe mobile embodiment | Planned |
 | Navigation, docking, and sustained autonomy | Future |
@@ -282,7 +273,7 @@ The parts of this project I'd most want to talk through in an interview.
 
 **Message bus: MQTT instead of ROS 2.** ROS 2 has no supported install on the Pi OS release
 required by the AI accelerator drivers. Rather than fight it, the bus is Mosquitto with typed
-messages; because every message is a validated schema object, the boundary — not the transport —
+messages; because every message is a validated schema object, the boundary, not the transport,
 is the contract, and a future migration touches exactly one module.
 
 **Making an unreliable model reliable.** Instead of asking the language model to emit structured
@@ -302,22 +293,22 @@ when that process hangs. A dedicated microcontroller owns the millisecond-level 
 enforces a command heartbeat: if the computer stops talking, the wheels stop within 250–500 ms.
 
 **Deliberately slow gearing.** 270:1 gearmotors cap the rover at roughly 0.084 m/s. Slow is the
-feature — it keeps the control loop stable, makes the robot safe to develop around people, and
+feature: it keeps the control loop stable, makes the robot safe to develop around people, and
 leaves a wide, useful duty-cycle range for the controller instead of living at the bottom of it.
 
 ---
 
 ## Tech stack
 
-**Hardware** — Raspberry Pi 5 ×2 · 26 TOPS vision accelerator · generative-AI accelerator ·
+**Hardware:** Raspberry Pi 5 ×2 · 26 TOPS vision accelerator · generative-AI accelerator ·
 on-sensor AI camera · ESP32 · BTS7960 motor drivers · 270:1 encoder gearmotors · INA260 power
 monitor · 100 W flexible solar panel · 256 Wh LiFePO4 power station · fused dual-domain wiring ·
 latching emergency stop
 
-**Software** — Python · Pydantic (typed message contracts) · MQTT · SQLite + vector search ·
+**Software:** Python · Pydantic (typed message contracts) · MQTT · SQLite + vector search ·
 C/C++ firmware · systemd / launchd supervision
 
-**Models** — on-sensor object detection · face detection and embedding (vector database with
+**Models:** on-sensor object detection · face detection and embedding (vector database with
 cosine lookup) · speech-to-text · Qwen 3 vision-language model on the AI accelerator ·
 35B multimodal reasoning model running locally on Apple Silicon via MLX · a small personality
 model for action selection

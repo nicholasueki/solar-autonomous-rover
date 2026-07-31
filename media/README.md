@@ -6,14 +6,14 @@ Drop photos and video here, then uncomment the matching line in the root `README
 
 | File | Shows |
 |---|---|
-| `photos/hero.jpg` | The assembled rover — the main image at the top of the README |
+| `photos/hero.jpg` | The assembled rover, and the main image at the top of the README |
 | `photos/electronics.jpg` | Electronics bay: both Pis, accelerators, regulators, motor drivers |
 | `photos/solar.jpg` | Solar panel deployed and charging while the system runs |
 | `photos/drivetrain.jpg` | Motors, encoders, wheels, and chassis |
 | `video/conversation.mp4` | Recognizing a person and holding a spoken conversation |
 | `video/drive.mp4` | Drivetrain bring-up and motion tests |
 
-Any other shots are welcome — wiring close-ups, the bench test setup, and screen recordings of
+Any other shots are welcome: wiring close-ups, the bench setup, and screen recordings of
 the live decision stream all make good additions.
 
 ## Tips
