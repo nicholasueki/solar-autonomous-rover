@@ -11,7 +11,7 @@ software crash can leave the wheels running.
 
 | | |
 |---|---|
-| **Status** | Cognitive stack running continuously on real hardware · drivetrain and solar chain in build and bring-up |
+| **Status** | Hardware fully assembled · cognitive stack running continuously · currently wiring the decision layer into the ESP32 motor controller, turning chosen actions into motor commands |
 | **Built by** | Nicholas Tincani Ueki — B.S. Computer Science (Emory) + B.S. Mechanical Engineering (Georgia Tech) |
 | **Scope** | Solo project — system design, electronics, mechanical build, and software |
 | **Domains** | Robotics · Embedded systems · Edge AI · Power systems · Controls |
@@ -116,6 +116,63 @@ microcontroller that keeps running even if every other computer stops.
 
 ---
 
+## The AI system — a chain of small models, not one big one
+
+Local models are improving fast, but none of them can reliably take raw images and sound in
+one end and produce trustworthy motor commands and intent out the other. Ask a single model to
+perceive, reason, decide, and act, and you get confident nonsense at the worst possible moment.
+
+So the rover doesn't ask one model to do everything. The work is split across a chain of models,
+each with **one narrow, boring job**: summarize this frame. Combine this with memory. Pick one of
+these three options. Every stage has a small enough responsibility that it's hard to get wrong,
+and its output is small enough to check.
+
+**The result of that constraint:** fewer hallucinations, lower latency, and far fewer tokens
+moving through the system — because each model only ever receives what it actually needs.
+
+### The pipeline
+
+```mermaid
+flowchart LR
+    CAM["<b>AI camera</b><br/>motion, objects, people"] -->|"triggers"| VLM["<b>Vision model</b> — on AI accelerator<br/>Qwen 3 VLM"]
+    VLM -->|"≤3 sentence<br/>scene summary"| BRAIN["<b>Reasoning model</b> — laptop<br/>35B multimodal"]
+    MEM[("<b>Memory</b><br/>faces · events · facts")] --> BRAIN
+    BRAIN -->|"scenario +<br/>3 candidate actions"| PERS["<b>Personality model</b><br/>picks one option"]
+    PERS -->|"chosen action"| VAL["<b>Validator</b> — deterministic<br/>re-checks against live state"]
+    VAL --> OUT["speech · movement"]
+```
+
+| Stage | Runs on | Its one job | What it outputs |
+|---|---|---|---|
+| **Detection** | On-sensor AI camera | Notice movement, objects, and people | A trigger — no model call unless something happened |
+| **Scene summary** | Vision accelerator (Qwen 3 VLM) | Look at the frame and describe it | 3 sentences, maximum |
+| **Scenario + options** | Laptop (35B multimodal) | Combine the summary with recent memory: what is happening, what in memory relates to it, and what could be done | A 1–5 sentence scenario and **3 candidate actions**, including speech and movement |
+| **Choice** | Personality model | Pick the option that fits who this robot is | One option — a single token |
+| **Execution** | Deterministic code | Re-check the choice against live state, then act | Motor commands or speech, or a refusal |
+
+The personality model's entire system prompt is the robot's character. It doesn't reason about
+the world or invent actions — it only chooses among options that were already generated and will
+still be validated afterward. That's what makes personality safe to have: it can change *which*
+reasonable thing happens, never *whether* something unreasonable does.
+
+### Memory
+
+Two things make the robot feel like it knows you rather than just seeing you:
+
+- **Face recognition through a vector database.** Each enrolled face is stored as a vector;
+  recognition is a cosine similarity lookup, which is fast enough to run inline without stalling
+  the pipeline and cheap enough to re-check constantly.
+- **Conversation memory with a sense of time.** A model summarizes what happened and files events
+  against *relative* time, so the robot's own recollection reads the way a person's would:
+  *"Nick said hi a few minutes ago; Nick entered the room right before that."* Anchoring events to
+  each other, instead of to raw timestamps, is what lets the reasoning model reconstruct a
+  situation from very few tokens.
+
+Together these are the two hard problems I focused on: **long-term memory that stays true**, and
+**responses fast enough to feel like a conversation** rather than a query.
+
+---
+
 ## Power system
 
 Two electrically separate power domains that share only a ground reference. Motors create
@@ -194,10 +251,10 @@ integration.
 Running continuously on real hardware:
 
 - **Spoken conversation** — wake-gated listening → speech-to-text → reasoning → spoken reply.
-- **Person recognition** — detection, face embedding, identity resolution, and greeting people
-  by name, including enrolling a new face mid-conversation by voice.
-- **Long-term memory** — semantic memory with duplicate detection and safeguards against the
-  model inventing facts or fabricating their source.
+- **Person recognition** — detection, face embedding, and identity resolution against a vector
+  database, greeting people by name and enrolling a new face mid-conversation by voice.
+- **Long-term memory** — semantic memory with duplicate detection, relative-time event ordering,
+  and safeguards against the model inventing facts or fabricating their source.
 - **Truthful self-reporting** — the model is prevented from claiming actions it did not take,
   a failure mode caught by the evaluation suites and fixed in code.
 - **Supervised, self-healing services** — every process restarts automatically and recovers
@@ -214,7 +271,7 @@ Running continuously on real hardware:
 | Reliable local spoken conversation | 🚧 Active |
 | Robust multi-person visual identity | 🚧 Active |
 | Richer perception: attention, proximity, sound events | Planned |
-| Deterministic motion foundation | Designed |
+| Deterministic motion foundation — decisions to motor commands | 🚧 In progress |
 | Head movement and social orientation | Planned |
 | Safe mobile embodiment | Planned |
 | Navigation, docking, and sustained autonomy | Future |
@@ -261,8 +318,10 @@ latching emergency stop
 **Software** — Python · Pydantic (typed message contracts) · MQTT · SQLite + vector search ·
 C/C++ firmware · pytest · systemd / launchd supervision
 
-**Models** — on-sensor object detection · face detection and embedding · speech-to-text ·
-35B multimodal reasoning model running locally on Apple Silicon
+**Models** — on-sensor object detection · face detection and embedding (vector database with
+cosine lookup) · speech-to-text · Qwen 3 vision-language model on the AI accelerator ·
+35B multimodal reasoning model running locally on Apple Silicon via MLX · a small personality
+model for action selection
 
 ---
 
