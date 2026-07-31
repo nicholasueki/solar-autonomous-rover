@@ -1,0 +1,279 @@
+# S.A.R. — Solar Autonomous Rover
+
+A solar-powered autonomous rover that sees, listens, holds a conversation, remembers people
+and events, and makes its own decisions — running entirely on local hardware, with no cloud
+and no internet dependency.
+
+The whole system runs off a 100 W solar panel and a portable battery. Three computers work
+together on board: two Raspberry Pis with AI accelerators handle vision and speech, and a
+laptop runs the large reasoning model. A separate microcontroller owns the motors, so no
+software crash can leave the wheels running.
+
+| | |
+|---|---|
+| **Status** | Cognitive stack running continuously on real hardware · drivetrain and solar chain in build and bring-up |
+| **Built by** | Nicholas Tincani Ueki — B.S. Computer Science (Emory) + B.S. Mechanical Engineering (Georgia Tech) |
+| **Scope** | Solo project — system design, electronics, mechanical build, and software |
+| **Domains** | Robotics · Embedded systems · Edge AI · Power systems · Controls |
+
+---
+
+## Demo
+
+> 📸 **Photos and video are being added.** The captures below are reserved and will appear
+> here as soon as the media is uploaded.
+
+<!-- Uncomment each line as the file is added to media/ -->
+<!-- ![The rover](media/photos/hero.jpg) -->
+<!-- ![Electronics bay](media/photos/electronics.jpg) -->
+<!-- ![Solar panel deployed](media/photos/solar.jpg) -->
+<!-- ![Drivetrain](media/photos/drivetrain.jpg) -->
+
+| Planned capture | What it shows |
+|---|---|
+| `media/photos/hero.jpg` | The assembled rover |
+| `media/photos/electronics.jpg` | Electronics bay: two Pis, accelerators, regulators, motor drivers |
+| `media/photos/solar.jpg` | Solar panel deployed and charging while the system runs |
+| `media/photos/drivetrain.jpg` | Motors, encoders, and wheels on the chassis |
+| `media/video/conversation.mp4` | Recognizing a person and holding a spoken conversation |
+| `media/video/drive.mp4` | Drivetrain bring-up and motion tests |
+
+---
+
+## Goals
+
+1. **Run untethered on sunlight.** No wall power, no cloud. A 100 W panel and a 256 Wh
+   battery have to carry the entire compute and drive load.
+2. **Be always aware without always burning power.** Continuous sensing at near-zero cost,
+   with the expensive processors idle until something actually matters.
+3. **Never let the AI touch anything dangerous.** The language model may only choose between
+   options that ordinary, predictable code generated and will re-check before executing.
+4. **Tell the truth.** The robot never claims it did something it did not do — a rule
+   enforced in code, not just in prompts.
+5. **Move safely around people**, once the drivetrain is qualified.
+
+---
+
+## The core design principle
+
+> **Always sensing. Not always thinking. Deterministic code owns reality; the AI only advises.**
+
+Every sense uses a cheap, always-on trigger that gates an expensive, on-demand stage. That
+single pattern is what makes continuous operation affordable in power, heat, and compute —
+and it's what makes a solar budget realistic at all.
+
+```
+Vision:  on-sensor detector (always on, ~free)  →  AI accelerator (on demand)  →  large vision model
+Audio:   voice activity + wake word (always on) →  speech-to-text (on demand)  →  reasoning model
+```
+
+The same idea runs in reverse for motion: the AI picks *what* and *where*, never *how*. Every
+number that reaches a motor is produced by deterministic code.
+
+---
+
+## System architecture
+
+Three computers, each with a clearly separated job, talking over a local network.
+
+```mermaid
+flowchart LR
+    subgraph A["Node A — Vision"]
+        A1["Raspberry Pi 5<br/>+ 26 TOPS AI accelerator<br/>+ on-sensor AI camera"]
+        A2["World model · scheduler<br/>· safety validator"]
+    end
+    subgraph B["Node B — Speech & local AI"]
+        B1["Raspberry Pi 5<br/>+ generative AI accelerator"]
+        B2["Speech-to-text<br/>· fast option selector"]
+    end
+    subgraph C["Node C — Reasoning"]
+        C1["MacBook Pro M1 Max<br/>35B multimodal model"]
+        C2["Decision generation<br/>· long-term memory"]
+    end
+    subgraph M["Motion controller"]
+        M1["ESP32<br/>PID · encoders · heartbeat · E-stop"]
+    end
+    A <--> B
+    B <--> C
+    A <--> C
+    B --> M
+```
+
+**Why the jobs are split this way:** vision must never wait behind speech, speech must never
+wait behind reasoning, and the motors must never wait behind any of them. Each box owns one
+class of work, and the one thing that can hurt someone — the wheels — sits behind a dedicated
+microcontroller that keeps running even if every other computer stops.
+
+### Perception ladder
+
+| Tier | Runs on | Rate | Cost | What it answers |
+|---|---|---|---|---|
+| 0 | On-sensor camera chip | Always on | ~free | "Something or someone is there" |
+| 0.5 | Vision accelerator | 1–2 Hz | ~free | What it looks like, semantically; how unusual it is |
+| 1 | Vision accelerator | On demand | ~10–30 ms | Who it is, body position, distance |
+| 2 | Laptop model | Event-gated | 1–3 s | Intent, ambiguity, "why" |
+| 2′ | On-board AI accelerator | Fallback | 2–3 s | Keeps seeing when the laptop is unreachable |
+
+---
+
+## Power system
+
+Two electrically separate power domains that share only a ground reference. Motors create
+voltage dips and electrical noise; a Raspberry Pi that browns out can corrupt its storage. So
+traction current never touches the compute supply.
+
+```mermaid
+flowchart TD
+    SUN["100 W flexible solar panel"] --> JACK["256 Wh portable battery<br/>built-in protection + solar charging"]
+    JACK --> PD["USB-C trigger — 20 V"]
+    PD --> F1["3 A fuse"] --> R1["5.2 V / 5 A regulator"] --> P1["Pi — vision"]
+    PD --> F2["3 A fuse"] --> R2["5.2 V / 5 A regulator"] --> P2["Pi — speech/AI"]
+    BAT["Traction battery"] --> FUSE["7.5 A fuse"] --> SW["Main switch"]
+    SW --> MON["Current/voltage monitor"] --> D1["Motor driver L"] & D2["Motor driver R"]
+    D1 --> ML["Left gearmotor + encoder"]
+    D2 --> MR["Right gearmotor + encoder"]
+    ES["Emergency stop"] -.->|"cuts driver enable"| D1 & D2
+```
+
+**Measured/design budget**
+
+| Load | Typical | Peak allowance |
+|---|---:|---:|
+| Vision node (Pi + accelerator + camera + cooling) | 10–15 W | 25 W |
+| Speech/AI node (Pi + accelerator + camera, storage, audio) | 12–18 W | 25 W |
+| Conversion losses + motion controller | 3–6 W | 8 W |
+| **Total** | **25–39 W** | **58 W** |
+
+From roughly 220 Wh usefully delivered, that is **about 5.5–8.5 hours** of continuous
+operation with no sun. A 100 W panel realistically delivers 20–70 W outdoors, so strong sun
+covers the typical compute load and slowly recharges; poor angle, shade, or heat means the
+battery still drains, only more slowly.
+
+**Design decisions worth calling out**
+- **No separate solar charge controller.** The battery station already contains protection and
+  maximum-power-point charging; adding another controller in front of it would fight the input
+  and waste power. The panel connects through passive adapters only.
+- **A dedicated regulator per Pi instead of the battery's USB ports.** A Pi 5 with accelerators
+  wants 5 V at 5 A, but generic USB-C ports advertise their headline wattage only at higher
+  voltages. Pulling 20 V and regulating it down per node gives each computer its own rail —
+  and every rail is load-tested at 1 A, 3 A, and 5 A before a Pi is ever connected to it.
+
+---
+
+## Drivetrain and motion control
+
+Deliberately slow and heavily geared: 270:1 gearmotors with quadrature encoders, giving roughly
+**0.084 m/s** at the pack's nominal voltage with 65 mm wheels — about 17,280 encoder counts per
+wheel revolution. Slow is a feature here: it makes the control loop stable, keeps the robot safe
+around people, and leaves the controller a wide useful duty-cycle range.
+
+Motion is built in three layers of authority, where each layer can veto the one above it:
+
+| Layer | Runs on | Rate | Owns |
+|---|---|---|---|
+| **L2 — Cognitive** | Laptop / local AI | ~1 Hz | Symbolic intent: "approach that person", "look there". May be wrong. |
+| **L1 — Primitives** | Vision Pi | 50 Hz | Closed-loop state machines, smooth velocity profiles, odometry, obstacle gating, timeouts |
+| **L0 — Reflex/safety** | ESP32 | 200+ Hz | PID velocity control, current limits, emergency stop, heartbeat watchdog |
+
+**Safety rules that are not negotiable, and are enforced in code rather than by the model:**
+- Never drive when a person is closer than 0.4 m.
+- Maximum 0.35 m/s near people, 0.6 m/s on open floor, always with smooth acceleration ramps.
+- Lost heartbeat, stalled sensor, or lost tracking mid-move → **stop**, never continue.
+- Every motion ends in a reported terminal state, so the reasoning layer always learns what
+  actually happened instead of assuming success.
+
+The entire motion stack is written against a `MotorDriver` interface with both a simulated and
+a hardware implementation, so all of it is **tested in simulation before a motor is bolted on** —
+convergence, obstacle stops, preemption, and odometry drift all run headless in continuous
+integration.
+
+---
+
+## What works today
+
+Running continuously on real hardware:
+
+- **Spoken conversation** — wake-gated listening → speech-to-text → reasoning → spoken reply.
+- **Person recognition** — detection, face embedding, identity resolution, and greeting people
+  by name, including enrolling a new face mid-conversation by voice.
+- **Long-term memory** — semantic memory with duplicate detection and safeguards against the
+  model inventing facts or fabricating their source.
+- **Truthful self-reporting** — the model is prevented from claiming actions it did not take,
+  a failure mode caught by the evaluation suites and fixed in code.
+- **Supervised, self-healing services** — every process restarts automatically and recovers
+  after a reboot on all three machines.
+- **22 automated tests** plus dedicated evaluation suites for decision quality, memory, and
+  motion judgment.
+
+### Roadmap
+
+| Milestone | State |
+|---|---|
+| Supervised, restartable core | ✅ Shipped |
+| Visual cognition — real images inform decisions | ✅ Shipped |
+| Reliable local spoken conversation | 🚧 Active |
+| Robust multi-person visual identity | 🚧 Active |
+| Richer perception: attention, proximity, sound events | Planned |
+| Deterministic motion foundation | Designed |
+| Head movement and social orientation | Planned |
+| Safe mobile embodiment | Planned |
+| Navigation, docking, and sustained autonomy | Future |
+
+---
+
+## Engineering decisions and trade-offs
+
+The parts of this project I'd most want to talk through in an interview.
+
+**Message bus: MQTT instead of ROS 2.** ROS 2 has no supported install on the Pi OS release
+required by the AI accelerator drivers. Rather than fight it, the bus is Mosquitto with typed
+messages; because every message is a validated schema object, the boundary — not the transport —
+is the contract, and a future migration touches exactly one module.
+
+**Making an unreliable model reliable.** Instead of asking the language model to emit structured
+commands, ordinary code builds a lettered menu of valid options and the model returns **a single
+letter**, decoded greedily with a one-token limit and clamped in code. The failure surface
+shrinks from "parse arbitrary output" to "one character, or fall back." This was the direct
+response to discovering that the accelerator's serving layer could not enforce output schemas at
+all.
+
+**Budgeting prompts like embedded memory.** The generative accelerator has a hard 4096-token
+context ceiling and delivers roughly 9.5 tokens/second, so every prompt has an enforced token
+budget and over-budget requests are rejected at the door rather than overflowing mid-generation.
+
+**Separating the motor controller from Linux.** A general-purpose OS cannot make hard real-time
+guarantees. The microcontroller enforces a command heartbeat: if the Pi stops talking, the wheels
+stop within 250–500 ms — verified by physically pulling the cable during a test.
+
+**Sim-first motion.** Hardware bring-up is sequenced deliberately: watchdog test → single motor
+with wheels raised → both motors raised → unloaded floor → payload in 0.5 kg steps → concurrent
+solar operation. No autonomous movement until each stage passes its own acceptance criteria.
+
+---
+
+## Tech stack
+
+**Hardware** — Raspberry Pi 5 ×2 · 26 TOPS vision accelerator · generative-AI accelerator ·
+on-sensor AI camera · ESP32 · BTS7960 motor drivers · 270:1 encoder gearmotors · INA260 power
+monitor · 100 W flexible solar panel · 256 Wh LiFePO4 power station · fused dual-domain wiring ·
+latching emergency stop
+
+**Software** — Python · Pydantic (typed message contracts) · MQTT · SQLite + vector search ·
+C/C++ firmware · pytest · systemd / launchd supervision
+
+**Models** — on-sensor object detection · face detection and embedding · speech-to-text ·
+35B multimodal reasoning model running locally on Apple Silicon
+
+---
+
+## Repository layout
+
+```
+media/photos/      build and demo photography
+media/video/       demo clips
+media/diagrams/    architecture and wiring diagrams
+```
+
+> This repository is a public showcase of the project's design and results. The robot's source
+> code and the operational documents for the live system are kept in a separate private
+> repository.
